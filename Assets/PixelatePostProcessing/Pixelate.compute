@@ -1,0 +1,43 @@
+#pragma kernel Pixelate
+
+RWTexture2D<float4> _Result;
+
+int _BlockSize;
+int _ResultWidth;
+int _ResultHeight;
+
+[numthreads(8,8,1)]
+void Pixelate (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _ResultWidth || id.y >= _ResultHeight)
+        return;
+
+    const float2 startPos = id.xy * _BlockSize;
+    
+    if (startPos.x >= _ResultWidth || startPos.y >= _ResultHeight)
+        return;
+    
+    const int blockWidth = min(_BlockSize, _ResultWidth - startPos.x);
+    const int blockHeight = min(_BlockSize, _ResultHeight - startPos.y);
+    const int numPixels = blockHeight * blockWidth;
+    
+    float4 colour = float4(0, 0, 0, 0);
+    for (int i = 0; i < blockWidth; ++i)
+    {
+        for (int j = 0; j < blockHeight; ++j)
+        {
+            const uint2 pixelPos = uint2(startPos.x + i, startPos.y + j);
+            colour += _Result[pixelPos];
+        }
+    }
+    colour /= numPixels;
+
+    for (int i = 0; i < blockWidth; ++i)
+    {
+        for (int j = 0; j < blockHeight; ++j)
+        {
+            const uint2 pixelPos = uint2(startPos.x + i, startPos.y + j);
+            _Result[pixelPos] = colour;
+        }
+    }
+}
