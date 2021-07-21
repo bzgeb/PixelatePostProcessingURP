@@ -6,8 +6,23 @@ public class ComputeShaderImageFilter : ScriptableRendererFeature
 {
     class CustomRenderPass : ScriptableRenderPass
     {
-        public ComputeShader FilterComputeShader;
-        public string KernelName;
+        ComputeShader _filterComputeShader;
+        string _kernelName;
+        int _renderTargetId;
+        
+        RenderTargetIdentifier _renderTargetIdentifier;
+        int renderTextureWidth;
+        int renderTextureHeight;
+
+        int _blockSize = 5;
+
+        public CustomRenderPass(ComputeShader filterComputeShader, string kernelName, int blockSize, int renderTargetId)
+        {
+            _filterComputeShader = filterComputeShader;
+            _kernelName = kernelName;
+            _blockSize = blockSize;
+            _renderTargetId = renderTargetId;
+        }
         
         // This method is called before executing the render pass.
         // It can be used to configure render targets and their clear state. Also to create temporary render target textures.
@@ -17,7 +32,11 @@ public class ComputeShaderImageFilter : ScriptableRendererFeature
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
             var cameraTargetDescriptor = renderingData.cameraData.cameraTargetDescriptor;
-            //cmd.GetTemporaryRT("_Result", cameraTargetDescriptor);
+            cmd.GetTemporaryRT(_renderTargetId, cameraTargetDescriptor);
+            _renderTargetIdentifier = new RenderTargetIdentifier(_renderTargetId);
+
+            renderTextureWidth = cameraTargetDescriptor.width;
+            renderTextureHeight = cameraTargetDescriptor.height;
         }
 
         // Here you can implement the rendering logic.
@@ -27,35 +46,44 @@ public class ComputeShaderImageFilter : ScriptableRendererFeature
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             CommandBuffer cmd = CommandBufferPool.Get();
-            var mainKernel = FilterComputeShader.FindKernel(KernelName);
-            FilterComputeShader.GetKernelThreadGroupSizes(mainKernel, out uint xGroupSize, out uint yGroupSize, out _);
-            /*
-                       Mathf.CeilToInt(_renderTexture.width / (float)BlockSize / xGroupSize),
-                       Mathf.CeilToInt(_renderTexture.height / (float)BlockSize / yGroupSize),
-                       1); 
-                       */
-            cmd.DispatchCompute(FilterComputeShader, mainKernel, 0, 0, 0);
+            var mainKernel = _filterComputeShader.FindKernel(_kernelName);
+            _filterComputeShader.GetKernelThreadGroupSizes(mainKernel, out uint xGroupSize, out uint yGroupSize, out _);
+            cmd.Blit(renderingData.cameraData.targetTexture, _renderTargetIdentifier);
+            cmd.SetComputeTextureParam(_filterComputeShader, mainKernel, _renderTargetId, _renderTargetIdentifier);
+            cmd.SetComputeIntParam(_filterComputeShader, "_BlockSize", _blockSize);
+            cmd.SetComputeIntParam(_filterComputeShader, "_ResultWidth", renderTextureWidth);
+            cmd.SetComputeIntParam(_filterComputeShader, "_ResultHeight", renderTextureHeight);
+            cmd.DispatchCompute(_filterComputeShader, mainKernel, 
+                Mathf.CeilToInt(renderTextureWidth / (float)_blockSize / xGroupSize), 
+                Mathf.CeilToInt(renderTextureHeight / (float)_blockSize / yGroupSize), 
+                1);
+            cmd.Blit(_renderTargetIdentifier, renderingData.cameraData.renderer.cameraColorTarget);
+            
+            context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
+            CommandBufferPool.Release(cmd);
         }
 
         // Cleanup any allocated resources that were created during the execution of this render pass.
         public override void OnCameraCleanup(CommandBuffer cmd)
         {
+            cmd.ReleaseTemporaryRT(_renderTargetId);
         }
     }
 
     #region Renderer Feature
     CustomRenderPass _scriptablePass;
     public ComputeShader FilterComputeShader;
-    public string KernelName;
+    public string KernelName = "Pixelate";
+    [Range(2, 40)] public int BlockSize = 3;
 
     /// <inheritdoc/>
     public override void Create()
     {
-        _scriptablePass = new CustomRenderPass
+        int renderTargetId = Shader.PropertyToID("_ImageFilterResult");
+        _scriptablePass = new CustomRenderPass(FilterComputeShader, KernelName, BlockSize, renderTargetId)
         {
-            FilterComputeShader = FilterComputeShader, 
-            KernelName = KernelName,
-            renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing
+            renderPassEvent = RenderPassEvent.AfterRendering
         };
     }
 
