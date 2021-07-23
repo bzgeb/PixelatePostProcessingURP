@@ -5,19 +5,19 @@ using UnityEngine.Rendering.Universal;
 public class ComputeShaderPixelateImageFilter : ScriptableRendererFeature
 {
     #region Renderer Pass
-    class CustomRenderPass : ScriptableRenderPass
+    class PixelateRenderPass : ScriptableRenderPass
     {
         ComputeShader _filterComputeShader;
         string _kernelName;
         int _renderTargetId;
 
         RenderTargetIdentifier _renderTargetIdentifier;
-        int renderTextureWidth;
-        int renderTextureHeight;
+        int _renderTextureWidth;
+        int _renderTextureHeight;
 
-        int _blockSize = 5;
+        int _blockSize;
 
-        public CustomRenderPass(ComputeShader filterComputeShader, string kernelName, int blockSize, int renderTargetId)
+        public PixelateRenderPass(ComputeShader filterComputeShader, string kernelName, int blockSize, int renderTargetId)
         {
             _filterComputeShader = filterComputeShader;
             _kernelName = kernelName;
@@ -37,8 +37,8 @@ public class ComputeShaderPixelateImageFilter : ScriptableRendererFeature
             cmd.GetTemporaryRT(_renderTargetId, cameraTargetDescriptor);
             _renderTargetIdentifier = new RenderTargetIdentifier(_renderTargetId);
 
-            renderTextureWidth = cameraTargetDescriptor.width;
-            renderTextureHeight = cameraTargetDescriptor.height;
+            _renderTextureWidth = cameraTargetDescriptor.width;
+            _renderTextureHeight = cameraTargetDescriptor.height;
         }
 
         // Here you can implement the rendering logic.
@@ -56,11 +56,11 @@ public class ComputeShaderPixelateImageFilter : ScriptableRendererFeature
             cmd.Blit(renderingData.cameraData.targetTexture, _renderTargetIdentifier);
             cmd.SetComputeTextureParam(_filterComputeShader, mainKernel, _renderTargetId, _renderTargetIdentifier);
             cmd.SetComputeIntParam(_filterComputeShader, "_BlockSize", _blockSize);
-            cmd.SetComputeIntParam(_filterComputeShader, "_ResultWidth", renderTextureWidth);
-            cmd.SetComputeIntParam(_filterComputeShader, "_ResultHeight", renderTextureHeight);
+            cmd.SetComputeIntParam(_filterComputeShader, "_ResultWidth", _renderTextureWidth);
+            cmd.SetComputeIntParam(_filterComputeShader, "_ResultHeight", _renderTextureHeight);
             cmd.DispatchCompute(_filterComputeShader, mainKernel,
-                Mathf.CeilToInt(renderTextureWidth / (float) _blockSize / xGroupSize),
-                Mathf.CeilToInt(renderTextureHeight / (float) _blockSize / yGroupSize),
+                Mathf.CeilToInt(_renderTextureWidth / (float) _blockSize / xGroupSize),
+                Mathf.CeilToInt(_renderTextureHeight / (float) _blockSize / yGroupSize),
                 1);
             cmd.Blit(_renderTargetIdentifier, renderingData.cameraData.renderer.cameraColorTarget);
 
@@ -80,7 +80,7 @@ public class ComputeShaderPixelateImageFilter : ScriptableRendererFeature
 
     #region Renderer Feature
 
-    CustomRenderPass _scriptablePass;
+    PixelateRenderPass _scriptablePass;
     public ComputeShader FilterComputeShader;
     public string KernelName = "Pixelate";
     [Range(2, 40)] public int BlockSize = 3;
@@ -96,7 +96,7 @@ public class ComputeShaderPixelateImageFilter : ScriptableRendererFeature
         }
         
         int renderTargetId = Shader.PropertyToID("_ImageFilterResult");
-        _scriptablePass = new CustomRenderPass(FilterComputeShader, KernelName, BlockSize, renderTargetId)
+        _scriptablePass = new PixelateRenderPass(FilterComputeShader, KernelName, BlockSize, renderTargetId)
         {
             renderPassEvent = RenderPassEvent.AfterRendering
         };
