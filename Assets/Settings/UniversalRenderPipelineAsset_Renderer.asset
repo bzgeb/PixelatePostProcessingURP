@@ -15,7 +15,7 @@ MonoBehaviour:
   m_Active: 1
   FilterComputeShader: {fileID: 7200000, guid: 8d8ea122f5b940842a1caf4881867a16, type: 3}
   KernelName: Pixelate
-  BlockSize: 12
+  BlockSize: 14
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
