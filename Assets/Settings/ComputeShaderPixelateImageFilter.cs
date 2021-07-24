@@ -81,10 +81,11 @@ public class ComputeShaderPixelateImageFilter : ScriptableRendererFeature
     #region Renderer Feature
 
     PixelateRenderPass _scriptablePass;
+    bool _initialized;
+    
     public ComputeShader FilterComputeShader;
     public string KernelName = "Pixelate";
     [Range(2, 40)] public int BlockSize = 3;
-    bool _initialized;
 
     /// <inheritdoc/>
     public override void Create()
@@ -96,17 +97,17 @@ public class ComputeShaderPixelateImageFilter : ScriptableRendererFeature
         }
         
         int renderTargetId = Shader.PropertyToID("_ImageFilterResult");
-        _scriptablePass = new PixelateRenderPass(FilterComputeShader, KernelName, BlockSize, renderTargetId)
-        {
-            renderPassEvent = RenderPassEvent.AfterRendering
-        };
+        _scriptablePass = new PixelateRenderPass(FilterComputeShader, KernelName, BlockSize, renderTargetId);
+        _scriptablePass.renderPassEvent = RenderPassEvent.AfterRendering;
         _initialized = true;
     }
 
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
         if (_initialized)
+        {
             renderer.EnqueuePass(_scriptablePass);
+        }
     }
 
     #endregion
